@@ -1,8 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
-			   xmlns:s="library://ns.adobe.com/flex/spark" 
-			   xmlns:mx="library://ns.adobe.com/flex/mx" minWidth="955" minHeight="600">
+			   		   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   		   xmlns:mx="library://ns.adobe.com/flex/mx" 
+					   minWidth="955" minHeight="600" backgroundAlpha="0"
+					   implements="com.unity.IUnityContentHost"
+					   creationComplete="windowedapplication1_creationCompleteHandler(event)">
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.unity.UnityContentLoader;
+			import com.unity.UnityLoaderParams;
+			
+			import mx.core.UIComponent;
+			import mx.events.FlexEvent;
+			
+			public var unityObject : Object;
+			private var _unityContentLoader : UnityContentLoader;
+			
+	
+			protected function windowedapplication1_creationCompleteHandler(event:FlexEvent) : void
+			{
+				_startLoad();
+			}
+			
+			private function _startLoad() : void
+			{
+				var params : UnityLoaderParams = new UnityLoaderParams(false, 720, 400, true);
+				_unityContentLoader = new UnityContentLoader("test.swf", this, params, true);
+				_unityContentLoader.contentLoaderInfo.addEventListener(Event.COMPLETE, _onUnityContentLoaderComplete);
+				_unityContentLoader.loadUnity();
+			}
+			
+			private function _onUnityContentLoaderComplete($e:Event) : void
+			{
+				uix.addChild(_unityContentLoader);
+				_unityContentLoader.unityContent.setContentHost(this);
+			}
+			
+			public function unityInitStart() : void
+			{
+				// ...
+			}
+			
+			public function unityInitComplete() : void
+			{
+				btn1.addEventListener(MouseEvent.CLICK, _doThis);
+				btn2.addEventListener(MouseEvent.CLICK, _doThis);
+			}
+			
+			private function _doThis($e:MouseEvent) : void
+			{
+				switch ($e.target)
+				{
+					case btn1:
+						_unityContentLoader.unityContent.sendMessage("Razr", "OpenClose");
+						break;
+					case btn2:
+						_unityContentLoader.unityContent.sendMessage("MotoQ", "ChangeTexture");
+						break;
+				}
+			}
+		]]>
+	</fx:Script>
+	
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+	
+	<mx:UIComponent id="uix" width="100%" height="100%" />
+	<s:Button id="btn1" x="47" y="69" label="Button" />
+	<s:Button id="btn2" x="47" y="100" label="Button" />
 </s:WindowedApplication>
