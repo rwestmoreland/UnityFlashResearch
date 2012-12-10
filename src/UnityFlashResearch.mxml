@@ -2,66 +2,422 @@
 <s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
 			   		   xmlns:s="library://ns.adobe.com/flex/spark" 
 			   		   xmlns:mx="library://ns.adobe.com/flex/mx" 
-					   minWidth="955" minHeight="600" backgroundAlpha="0"
-					   implements="com.unity.IUnityContentHost"
-					   creationComplete="windowedapplication1_creationCompleteHandler(event)">
+					   minWidth="720" minHeight="400" maxWidth="720" maxHeight="400"
+					   backgroundAlpha="0" showStatusBar="false" frameRate="60"
+					   creationComplete="_init(event);" applicationComplete="_applicationCompleteHandler(event);">
+	<fx:Style source="UnityFlashResearch.css"/>
+	<s:states>
+		<s:State name="ColorPickState1"/>
+		<s:State name="ColorPickState2"/>
+	</s:states>
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
 	
 	<fx:Script>
 		<![CDATA[
-			import com.unity.UnityContentLoader;
-			import com.unity.UnityLoaderParams;
+			import com.adobe.viewsource.ViewSource;
+			import com.greensock.TweenLite;
 			
-			import mx.core.UIComponent;
+			import data.LoadUnityContent;
+			import data.LoadXML;
+			
+			import mx.core.INavigatorContent;
 			import mx.events.FlexEvent;
 			
-			public var unityObject : Object;
-			private var _unityContentLoader : UnityContentLoader;
+			import utils.FPSCounter;
 			
-	
-			protected function windowedapplication1_creationCompleteHandler(event:FlexEvent) : void
+			private static const CONTENT_URL 	: String = "test.swf";
+			private static const XML_URL		: String = "polyData.xml";
+			
+			private var _unity					: LoadUnityContent;
+			private var _fps					: FPSCounter;
+			private var _numOfPhones 			: int;
+			private var _position				: int = 1;
+			private var _phoneArr				: Array;
+			private var _polyArr				: Array;
+			private var _loadXML				: LoadXML;
+			private var _screen					: int = 1;
+			
+			protected function _applicationCompleteHandler(event:FlexEvent) : void
 			{
-				_startLoad();
+				//ViewSource.addMenuItem(this, “http://SAMPLE_WEBSITE.ORG/srcview/index.html”);
+				//*ViewSource.addMenuItem(this, "http://SAMPLE_WEBSITE.ORG/srcview/index.html");
+				//var viewer = air.sou
 			}
 			
-			private function _startLoad() : void
+			private function _init(event:FlexEvent) : void
 			{
-				var params : UnityLoaderParams = new UnityLoaderParams(false, 720, 400, true);
-				_unityContentLoader = new UnityContentLoader("test.swf", this, params, true);
-				_unityContentLoader.contentLoaderInfo.addEventListener(Event.COMPLETE, _onUnityContentLoaderComplete);
-				_unityContentLoader.loadUnity();
+				_unity = new LoadUnityContent();
+				_unity.addEventListener(LoadUnityContent.UNITY_LOAD_COMPLETE, _onUnityContentLoaderComplete);
+				_unity.addEventListener(LoadUnityContent.UNITY_INIT, _unityInitComplete);
+				_unity.startLoad(CONTENT_URL);
 			}
 			
 			private function _onUnityContentLoaderComplete($e:Event) : void
 			{
-				uix.addChild(_unityContentLoader);
-				_unityContentLoader.unityContent.setContentHost(this);
+				uix.addChild(_unity.unityContentLoader);
+				_unity.unityContentLoader.unityContent.setContentHost(_unity);
+				
+				setElementIndex(loading, 4);
+				
+				label1.text = "Initialized engine version: 4.0.0f7";
+				label2.text = "MolehillGfxDevice: OpenGL (Direct blitting)";
+				dblClkHint1.text = "Double click on any phone to interact with it.";
+				dblClkHint2.text = "Double click on phone to open, or close it.";
 			}
 			
-			public function unityInitStart() : void
+			private function _unityInitComplete($e:Event) : void
 			{
-				// ...
+				_unity.unityContentLoader.unityContent.sendMessage("Main Camera", "SetResponder", {responder:this});
+				_unity.unityContentLoader.unityContent.sendMessage("Main Camera", "GetNumOfPhones");
+				
+				_phoneArr = new Array();
+				_phoneArr = ["8703e", "8830", "9400", "Migo", "MotoQ", "Razr", "Storm", "u470"];
+				
+				_loadXML = new LoadXML();
+				_loadXML.addEventListener(LoadXML.XML_LOADED, _onXmlLoad);
+				_loadXML.init("polyData.xml");
+				
+				_fps = new FPSCounter(8, 60, 0xFFFFFF, false);
+				uix.addChild(_fps);
+				
+				doubleClickEnabled = true;
+				this.addEventListener(MouseEvent.DOUBLE_CLICK, _doubleClick);
+				
+				next_btn.buttonMode = true;
+				next_btn.mouseChildren = false;
+				
+				back_btn.buttonMode = true;
+				back_btn.mouseChildren = false;
+				
+				invis_btn.buttonMode = true;
+				
+				TweenLite.delayedCall(1, _killLoadScreen);
 			}
 			
-			public function unityInitComplete() : void
+			private function _killLoadScreen() : void
 			{
-				btn1.addEventListener(MouseEvent.CLICK, _doThis);
-				btn2.addEventListener(MouseEvent.CLICK, _doThis);
+				navBtns.visible = true;
+				TweenLite.to(loading, 0.5, {alpha: 0, onComplete: function() : void {loading.visible = false;}});
+				TweenLite.to(navBtns, 0.5, {alpha: 1});
 			}
 			
-			private function _doThis($e:MouseEvent) : void
+			private function _doubleClick($e:MouseEvent) : void
 			{
-				switch ($e.target)
+				if (_screen == 2)
+					_unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "OnDoubleClick");
+			}
+			
+			private function _onXmlLoad($e:Event) : void
+			{
+				_polyArr = new Array();
+				var i : Number = 0;
+				for each (var p : String in _loadXML.data..poly)
 				{
-					case btn1:
-						_unityContentLoader.unityContent.sendMessage("Razr", "OpenClose");
-						break;
-					case btn2:
-						_unityContentLoader.unityContent.sendMessage("MotoQ", "ChangeTexture");
-						break;
+					_polyArr[i] = p;
+					i++;
 				}
+				
+				label3.text = "Polys: " + _polyArr[_position - 1];
+			}
+			
+			// -- FUNCTIONS BEING CALLED VIA C# -- //
+			/**
+			 * We are getting the number of phones from
+			 * C# in the script SendToFlashScript.cs which
+			 * is attached to the "Main Camera" GameObject.
+			 */
+			public function setNumOfPhones($obj:Object) : void
+			{
+				_numOfPhones = int($obj);
+			}
+			
+			public function screenOneReady($obj:Object) : void
+			{
+				var trash : Object = $obj;
+				trash = null;
+				
+				navBtns.visible = true;
+				TweenLite.to(navBtns, 0.3, {alpha: 1});
+				dblClkHint2.visible = false;
+				dblClkHint1.visible = true;
+				invis_btn.visible = true;
+				home_btn.visible = false;
+				homeHint.visible = false;
+				_screen = 1;
+				this.currentState = "ColorPickState1";
+				
+				_clrPickerShowHide();
+			}
+			
+			public function onMouseEnter($obj:Object) : void
+			{
+				var trash : Object = $obj;
+				trash = null;
+				
+				if (_screen == 2)
+					_doDblClkHntShow();
+			}
+			
+			public function onMouseExit($obj:Object) : void
+			{
+				var trash : Object = $obj;
+				trash = null;
+				
+				if (_screen == 2)
+					TweenLite.to(dblClkHint2, 0.3, {alpha: 0.0});
+			}
+			
+			// --- End of C# Code.
+			
+			private function _navBtnEvents($e:MouseEvent) : void
+			{
+				switch ($e.currentTarget)
+				{
+					// Next Button
+					case next_btn:
+						if ($e.type == "click")
+						{	
+							if (_position != 8)
+							{
+								_unity.unityContentLoader.unityContent.sendMessage("Main Camera", "Next"); 
+								_position++;
+							}	
+						}
+						
+						if ($e.type == "rollOver" || $e.type == "rollOut")
+							TweenLite.to(next_btn, 0.3, {alpha:($e.type == "rollOver") ? 0.7 : 0.1});
+						
+						break;
+					
+					// Back Button
+					case back_btn:
+						if ($e.type == "click")
+						{
+							if (_position != 1)
+							{
+								_unity.unityContentLoader.unityContent.sendMessage("Main Camera", "Back"); 
+								_position--;
+							}
+						}
+						
+						if ($e.type == "rollOver" || $e.type == "rollOut")
+							TweenLite.to(back_btn, 0.3, {alpha:($e.type == "rollOver") ? 0.7 : 0.1});
+						break;
+					
+					// Invis Button
+					case invis_btn:
+						if ($e.type == "rollOver" || $e.type == "rollOut")
+						{
+							dblClkHint1.visible = (_screen == 1) ? true : false;
+							TweenLite.to(dblClkHint1, 0.3, {alpha:($e.type == "rollOver") ? 0.7 : 0, onComplete: function() : void
+							{
+								if (dblClkHint1.alpha == 0)
+									dblClkHint1.visible = false;
+							}});
+						}
+						
+						if ($e.type == "doubleClick")
+						{
+							_unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "DoubleClick");
+							TweenLite.to(navBtns, 0.3, {alpha: 0, onComplete: function() : void
+							{
+								navBtns.visible = false;	
+							}});
+							
+							dblClkHint1.visible = false;
+							invis_btn.visible = false;
+							_screen = 2;
+							dblClkHint2.visible = true;
+							_doDblClkHntShow();
+							_enableHomeBtn();
+							
+							_clrPickerShowHide();
+						}
+						break;
+					default:
+				}
+				
+				label3.text = "Polys: " + _polyArr[_position - 1];
+				
+				if (_position == 8) next_btn.enabled = false;
+				else next_btn.enabled = true;
+				
+				if (_position == 1) back_btn.enabled = false;
+				else back_btn.enabled = true;
+			}
+			
+			/**
+			 * Functions to change the texture color of
+			 * either the MotoQ phone, or the Samsung u470 phone.
+			 */
+			private function _colorBtnEvents($e:MouseEvent) : void
+			{
+				colorPickHint.text = "Select a color to change the color of the current phone.";
+				if (_phoneArr[_position - 1] == "MotoQ")
+				{
+					if ($e.type == "rollOver" || $e.type == "rollOut")
+					{
+						if ($e.type == "rollOver") colorPickHint.visible = true;
+						TweenLite.to(colorPickHint, 0.5, {alpha:($e.type == "rollOver") ? 0.7 : 0, onComplete: function() : void
+						{
+							if ($e.type == "rollOut") colorPickHint.visible = false;
+						}});
+					}
+					
+					switch ($e.currentTarget)
+					{
+						// MotoQ - GREY
+						case motoq_grey_btn:
+							motoq_black_btn.enabled = true;
+							motoq_grey_btn.enabled = false;
+							break;
+						
+						// MotoQ - BLACK
+						case motoq_black_btn:
+							motoq_black_btn.enabled = false;
+							motoq_grey_btn.enabled = true;
+							break;
+						default:
+					}
+					
+					if ($e.type == "click")
+						_unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "ChangeTexture");
+				}
+				
+				if (_phoneArr[_position - 1] == "u470")
+				{
+					if ($e.type == "rollOver" || $e.type == "rollOut")
+					{
+						if ($e.type == "rollOver") colorPickHint.visible = true;
+						TweenLite.to(colorPickHint, 0.5, {alpha:($e.type == "rollOver") ? 0.7 : 0, onComplete: function() : void
+						{
+							if ($e.type == "rollOut") colorPickHint.visible = false;
+						}});
+					}
+					
+					switch ($e.currentTarget)
+					{
+						case u470_black_btn:
+							u470_teal_btn.enabled = true;
+							u470_red_btn.enabled = true;
+							u470_black_btn.enabled = false;
+							
+							break;
+						case u470_teal_btn:
+							u470_black_btn.enabled = true;
+							u470_red_btn.enabled = true;
+							u470_teal_btn.enabled = false;
+							
+							break;
+						case u470_red_btn:
+							u470_black_btn.enabled = true;
+							u470_teal_btn.enabled = true;
+							u470_red_btn.enabled = false;
+						
+							break;
+						default:
+					}
+					
+					/**
+					 * There is probably a better way to do these functions
+					 * in C# but I'm just too tired of writing code.
+					 * Will figure this one out at a later point.
+					 */
+					if ($e.type == "click")
+					{
+						switch ($e.currentTarget)
+						{
+							case u470_black_btn: _unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "StartNumThree"); break;
+							case u470_teal_btn: _unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "StartNumOne"); break;
+							case u470_red_btn: _unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "StartNumTwo"); break;
+							default:
+						}
+					}
+				}	
+			}
+			
+			// --- End of color picker code.
+			
+			private function _clrPickerShowHide() : void
+			{
+				if (_screen == 2) 
+				{
+					if (_phoneArr[_position - 1] == "MotoQ" ||
+						_phoneArr[_position - 1] == "u470")
+					{
+						if (_phoneArr[_position - 1] == "MotoQ")
+						{
+							this.currentState = "ColorPickState1";
+							motoq_color_picker.visible = true;
+						}	
+						else if (_phoneArr[_position - 1] == "u470")
+						{
+							this.currentState = "ColorPickState2";
+							u470_color_picker.visible = true;
+						}
+							
+						clrPicker.visible = true;
+						TweenLite.to(clrPicker, 0.3, {alpha:0.9});
+					}
+				}
+				else
+				{
+					// I MAY CHANGE THIS....
+					TweenLite.to(clrPicker, 0.3, {alpha:0, onComplete: function() : void
+					{
+						clrPicker.visible = false;
+						
+						if (currentState == "ColorPickState1")
+							motoq_color_picker.visible = false;
+						else
+							u470_color_picker.visible = false;
+					}});
+				}
+			}
+			
+			private function _doDblClkHntShow() : void
+			{
+				if (_phoneArr[_position - 1] == "9400" || 
+					_phoneArr[_position - 1] == "u470" || 
+					_phoneArr[_position - 1] == "Razr")
+				{
+					TweenLite.to(dblClkHint2, 0.3, {alpha: 0.7});
+				}
+			}
+			
+			private function _enableHomeBtn() : void
+			{
+				homeHint.text = "Click to return to phone selection screen.";
+				homeHint.visible = true;
+				
+				home_btn.buttonMode = true;
+				home_btn.visible = true;
+				TweenLite.to(home_btn, 0.5, {alpha: 0.7});
+				
+				home_btn.addEventListener(MouseEvent.ROLL_OVER, _onHomeBtnEvents);
+				home_btn.addEventListener(MouseEvent.ROLL_OUT, _onHomeBtnEvents);
+				home_btn.addEventListener(MouseEvent.CLICK, _onHomeBtnEvents);
+			}
+			
+			private function _onHomeBtnEvents($e:MouseEvent) : void
+			{
+				if ($e.type == "rollOver" || $e.type == "rollOut")
+					TweenLite.to(homeHint, 0.3, {alpha:($e.type == "rollOver") ? 0.7 : 0});
+				
+				if ($e.type == "click")
+				{
+					if (_phoneArr[_position - 1] == "9400" || _phoneArr[_position - 1] == "u470" || _phoneArr[_position - 1] == "Razr")
+						_unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "ResetOpenedPhone");
+					else
+						_unity.unityContentLoader.unityContent.sendMessage(_phoneArr[_position - 1], "GoToHome");
+				}
+			}
+			
+			private function _renable() : void
+			{
+				next_btn.enabled = true;
 			}
 		]]>
 	</fx:Script>
@@ -70,7 +426,52 @@
 		<s:BasicLayout/>
 	</s:layout>
 	
-	<mx:UIComponent id="uix" width="100%" height="100%" />
-	<s:Button id="btn1" x="47" y="69" label="Button" />
-	<s:Button id="btn2" x="47" y="100" label="Button" />
+	<s:Image id="loading" source="./assets/loading_screen.jpg"/>
+	<mx:UIComponent id="uix" width="100%" height="100%"/>
+	
+	<s:VGroup x="10" y="10">
+		<s:Label id="label1" color="#ffffff"/>
+		<s:Label id="label2" color="#ffffff"/>
+		<s:Label id="label3" color="#ffffff"/>
+	</s:VGroup>
+	
+	<s:HGroup id="navBtns" x="125" y="142" visible="false" alpha="0">
+		<s:Image id="back_btn" source="./assets/nav_back_btn.png" x="247" y="138" alpha=".1" enabled="false" 
+				 click="_navBtnEvents(event);" rollOver="_navBtnEvents(event);" rollOut="_navBtnEvents(event);"/>
+		<s:Spacer width="300"/>
+		<s:Image id="next_btn" source="./assets/nav_fwd_btn.png" x="513" y="138" alpha=".1" 
+				 click="_navBtnEvents(event);" rollOver="_navBtnEvents(event);" rollOut="_navBtnEvents(event);"/>
+	</s:HGroup>
+	
+	<s:Button id="invis_btn" x="265" y="57" width="189" height="273" label="Button" alpha="0" 
+			  doubleClick="_navBtnEvents(event);" rollOver="_navBtnEvents(event);" rollOut="_navBtnEvents(event);"/>
+	<s:RichText id="dblClkHint1" visible="true" x="474" y="69" width="204" height="40" alpha="0"
+				color="#ffffff" fontFamily="Sugo" fontSize="20" textAlign="left"/>
+	<s:RichText id="dblClkHint2" visible="false" x="498" y="281" width="204" height="40" alpha="0"
+				color="#ffffff" fontFamily="Sugo" fontSize="20" textAlign="left"/>
+	<s:RichText id="homeHint" visible="false" x="75" y="310" width="152" height="51" alpha="0"
+				color="#ffffff" fontFamily="Sugo" fontSize="16" textAlign="left"/>
+	<s:Image id="home_btn" x="27" y="355" width="30" height="26" source="./assets/home.png" alpha="0" visible="false"/>
+	
+	<s:VGroup id="clrPicker" x="70" y="240" horizontalAlign="center" visible="false">
+		<s:HGroup>
+			<s:Label color="#ffffff" fontFamily="Sugo" fontSize="16" text="Phone Color" alpha="0.7"/>
+		</s:HGroup>
+		<s:HGroup id="motoq_color_picker" includeIn="ColorPickState1" visible="false" rollOver="_colorBtnEvents(event);" rollOut="_colorBtnEvents(event);">
+			<s:Image id="motoq_grey_btn" source="./assets/grey_color_btn.png" buttonMode="true" enabled="false" click="_colorBtnEvents(event);"/>
+			<s:Spacer width="2"/>
+			<s:Image id="motoq_black_btn" source="./assets/black_color_btn.png" buttonMode="true" click="_colorBtnEvents(event);"/>
+		</s:HGroup>
+		<s:HGroup id="u470_color_picker" includeIn="ColorPickState2" visible="false" rollOver="_colorBtnEvents(event);" rollOut="_colorBtnEvents(event);">
+			<s:Image id="u470_black_btn" source="./assets/black_color_btn.png" buttonMode="true" enabled="false" click="_colorBtnEvents(event);"/>
+			<s:Spacer width="1"/>
+			<s:Image id="u470_teal_btn" source="./assets/teal_color_btn.png" buttonMode="true" click="_colorBtnEvents(event);"/>
+			<s:Spacer width="3"/>
+			<s:Image id="u470_red_btn" source="./assets/red_color_btn.png" buttonMode="true" click="_colorBtnEvents(event);"/>
+		</s:HGroup>
+	</s:VGroup>
+	
+	<s:RichText id="colorPickHint" visible="false" x="34" y="165" width="164" height="54" alpha="0"
+				color="#ffffff" fontFamily="Sugo" fontSize="16" textAlign="left"/>
+	
 </s:WindowedApplication>
