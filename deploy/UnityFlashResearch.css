@@ -1,0 +1,18 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+
+global
+{
+	font-family: Arial;
+	vertical-align: middle;
+	text-align: center;
+}
+@font-face
+{
+	fontFamily: Sugo;
+	src: url("/Users/rwestmor/Library/Fonts/Sugo.otf");
+	embedAsCFF: true;
+}
+	
